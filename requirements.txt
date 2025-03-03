@@ -1,0 +1,17 @@
+# Core Libraries
+numpy==1.26.4
+tqdm==4.67.1
+
+# Machine Learning & Deep Learning
+tensorflow==2.18.0
+keras==3.8.0
+
+# Web Framework for API Deployment
+flask==3.0.0
+flask-cors==4.0.0
+gunicorn==21.2.0
+
+# Data Processing
+protobuf==5.29.3
+h5py==3.13.0
+
