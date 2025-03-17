@@ -1,0 +1,6 @@
+flask
+tensorflow
+networkx
+numpy
+requests
+streamlit
