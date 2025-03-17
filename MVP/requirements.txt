@@ -1,4 +1,6 @@
-streamlit
+flask
 tensorflow
+networkx
 numpy
-pandas
+requests
+streamlit
