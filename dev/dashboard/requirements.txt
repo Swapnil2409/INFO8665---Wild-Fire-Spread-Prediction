@@ -1,0 +1,8 @@
+flask
+tensorflow
+networkx
+numpy
+requests
+streamlit
+folium
+streamlit_folium
