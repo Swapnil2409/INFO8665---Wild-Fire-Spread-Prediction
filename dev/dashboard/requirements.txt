@@ -1,0 +1,11 @@
+flask
+tensorflow==2.18.0
+keras==3.8.0
+networkx==3.2.1
+numpy==1.26.4
+requests==2.31.0
+streamlit==1.34.0
+folium==0.16.0
+streamlit_folium
+protobuf==3.20.3
+python-dotenv==1.1.0
