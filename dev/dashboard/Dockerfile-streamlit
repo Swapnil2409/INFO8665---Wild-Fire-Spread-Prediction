@@ -1,0 +1,7 @@
+# Dockerfile-streamlit
+FROM python:3.9
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir -r dev/dashboard/requirements.txt
+EXPOSE 8501
+CMD ["streamlit", "run", "dev/dashboard/streamlit_app.py", "--server.port=8501", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]

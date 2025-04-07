@@ -9,20 +9,34 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# ✅ Load model
-model_path = os.path.join(os.path.dirname(__file__), "../models/wildfire_model.keras")
+# ✅ Helper: Read Docker secret (returns path for binary files)
+def read_secret(secret_file, binary=False):
+    path = f"/run/secrets/{secret_file}"
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Secret file '{secret_file}' not found.")
+    
+    if binary:
+        with open(path, "r") as f:
+            return f.read().strip()  # Path to .keras
+    else:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+
+# 🔐 Load secrets (model_path and road_path point to actual files in container)
+model_path = read_secret("model_path", binary=True)
+road_path = read_secret("road_path", binary=True)
+
+# ✅ Load model and road network
 model = tf.keras.models.load_model(model_path, compile=False)
 
-# ✅ Load road network
-road_network_path = os.path.join(os.path.dirname(__file__), "../data-collection/processed/road_network.gpickle")
-with open(road_network_path, "rb") as f:
+with open(road_path, "rb") as f:
     road_network = pickle.load(f)
 
-# ✅ Helper: closest node
+# 🔍 Nearest node finder
 def find_nearest_node(lat, lon):
     return min(road_network.nodes, key=lambda node: np.sqrt((lat - node[0])**2 + (lon - node[1])**2))
 
-# 🔹 Predict wildfire
+# 🔥 Wildfire Prediction Endpoint
 @app.route('/predict_wildfire', methods=['POST'])
 def predict_wildfire():
     try:
@@ -37,13 +51,7 @@ def predict_wildfire():
         predictions = model.predict(input_data).reshape(-1)
 
         risk_score = float(np.mean(predictions))
-        if np.max(predictions) > 0.6:
-            risk_level = "High"
-        elif risk_score <= 0.4:
-            risk_level = "Low"
-        else:
-            risk_level = "Medium"
-
+        risk_level = "High" if np.max(predictions) > 0.6 else "Low" if risk_score <= 0.4 else "Medium"
         top_indices = predictions.argsort()[-15:][::-1]
         fire_zones = coords[top_indices].tolist()
 
@@ -56,7 +64,7 @@ def predict_wildfire():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# 🔹 Generate map
+# 🗺️ Evacuation Map Generator
 @app.route('/generate_evacuation_map', methods=['POST'])
 def generate_evacuation_map():
     try:
@@ -68,19 +76,16 @@ def generate_evacuation_map():
         if not fire_zones:
             return jsonify({"error": "No fire zones provided"}), 400
 
-        # ✅ Ensure all coords are tuples
         fire_coords = [tuple(coord) for coord in fire_zones[:10]]
         fire_center = np.mean(np.array(fire_coords), axis=0)
         all_nodes = [tuple(node) for node in road_network.nodes]
 
-        # 🟢 5 farthest safe zones
         safe_zones = sorted(
             all_nodes,
             key=lambda node: np.linalg.norm(np.array(node) - fire_center),
             reverse=True
         )[:5]
 
-        # 🔵 20 safe-ish random evac points
         rng = np.random.default_rng(seed=42)
         sampled_nodes = rng.choice(all_nodes, size=1000, replace=False)
         blue_nodes = []
@@ -90,7 +95,6 @@ def generate_evacuation_map():
             if len(blue_nodes) == 20:
                 break
 
-        # 🌍 Build map
         evac_map = folium.Map(location=fire_center, zoom_start=13)
 
         for coord in fire_coords:
@@ -100,20 +104,13 @@ def generate_evacuation_map():
             folium.Marker(node, icon=folium.Icon(color='blue', icon='info-sign')).add_to(evac_map)
 
         for i, node in enumerate(safe_zones):
-            folium.Marker(
-                location=node,
-                popup=f"Safe Zone {i+1}",
-                icon=folium.Icon(color='green', icon='ok-sign')
-            ).add_to(evac_map)
+            folium.Marker(location=node, popup=f"Safe Zone {i+1}", icon=folium.Icon(color='green', icon='ok-sign')).add_to(evac_map)
 
         if user_lat is not None and user_lon is not None:
-            folium.Marker(
-                [user_lat, user_lon],
-                popup="Your Location",
-                icon=folium.Icon(color='black', icon='star')
-            ).add_to(evac_map)
+            folium.Marker([user_lat, user_lon], popup="Your Location", icon=folium.Icon(color='black', icon='star')).add_to(evac_map)
 
         map_html = evac_map.get_root().render()
+
         return jsonify({
             "map_html": map_html,
             "destinations": [{"latitude": s[0], "longitude": s[1]} for s in safe_zones]
@@ -122,5 +119,6 @@ def generate_evacuation_map():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# 🚀 Run
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)

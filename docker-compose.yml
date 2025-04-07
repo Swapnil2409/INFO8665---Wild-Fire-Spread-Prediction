@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile-flask
+    ports:
+      - "5000:5000"
+    container_name: wildfire-api
+    secrets:
+      - model_path
+      - road_path
+    environment:
+      MODEL_PATH: /run/secrets/model_path
+      ROAD_PATH: /run/secrets/road_path
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: dev/dashboard/Dockerfile-streamlit
+    ports:
+      - "8501:8501"
+    container_name: wildfire-ui
+    depends_on:
+      - api
+    secrets:
+      - api_url
+    environment:
+      API_URL: /run/secrets/api_url
+
+secrets:
+  api_url:
+    file: secrets/api_url
+  model_path:
+    file: secrets/model_path
+  road_path:
+    file: secrets/road_path
